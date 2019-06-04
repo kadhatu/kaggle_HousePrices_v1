@@ -33,5 +33,30 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+# Load data
+train = pd.read_csv("./train.csv")
+test = pd.read_csv("./test.csv")
+print("Data is loaded!")
+print("Train:", train.shape[0],"sales, and", train.shape[1],"features")
+print("Test:", test.shape[0],"sales, and", test.shape[1],"features")
+
+quantitative = [f for f in train.columns if train.dtypes[f] != 'object']
+quantitative.remove('SalePrice')
+quantitative.remove('Id')
+qualitative = [f for f in train.columns if train.dtypes[f] == 'object']
 
 
+sns.set_style("whitegrid")
+missing = train.isnull().sum()
+missing = missing[missing > 0]
+missing.sort_values(inplace=True)
+missing.plot.bar()
+
+
+y = train['SalePrice']
+plt.figure(1); plt.title('Johnson SU')
+sns.distplot(y, kde=False, fit=stats.johnsonsu)
+plt.figure(2); plt.title('Normal')
+sns.distplot(y, kde=False, fit=stats.norm)
+plt.figure(3); plt.title('Log Normal')
+sns.distplot(y, kde=False, fit=stats.lognorm)
