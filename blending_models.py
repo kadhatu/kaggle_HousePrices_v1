@@ -116,7 +116,7 @@ sns.heatmap(corr)
 
 
 
-# Simple clustering 
+# Simple clustering using TSNE
 features = quantitative + qual_encoded
 model = TSNE(n_components=2, random_state=0, perplexity=50)
 X = train[features].fillna(0.).values
@@ -134,3 +134,82 @@ kmeans.fit(pc)
 fr = pd.DataFrame({'tsne1':tsne[:,0], 'tsne2':tsne[:,1], 'cluster':kmeans.labels_})
 sns.lmplot(data=fr, x='tsne1', y='tsne2', hue='cluster', fit_reg=False)
 print(np.sum(pca.explained_variance_ratio_))
+
+
+# Models
+# Data processing
+
+train.drop(['Id'], axis=1, inplace=True)
+test.drop(['Id'], axis=1, inplace=True)
+
+train = train[train.GrLivArea < 4500]
+train.reset_index(drop=True, inplace=True)
+train["SalePrice"] = np.log1p(train["SalePrice"])
+y = train['SalePrice'].reset_index(drop=True)
+
+# Feature
+train_features = train.drop(['SalePrice'], axis=1)
+test_features = test
+features = pd.concat([train_features, test_features]).reset_index(drop=True)
+features.shape
+
+features['MSSubClass'] = features['MSSubClass'].apply(str)
+features['YrSold'] = features['YrSold'].astype(str)
+features['MoSold'] = features['MoSold'].astype(str)
+features['Functional'] = features['Functional'].fillna('Typ')
+features['Electrical'] = features['Electrical'].fillna('SBrkr')
+features['KitchenQual'] = features['KitchenQual'].fillna('TA')
+features['PoolQC'] = features['PoolQC'].fillna("None")
+features['Exterior1st'] = features['Exterior1st'].fillna(features['Exterior1st'].mode()[0])
+features['Exterior2nd'] = features['Exterior2nd'].fillna(features['Exterior1st'].mode()[0])
+features['SaleType'] = features['SaleType'].fillna(features['SaleType'].mode()[0])
+
+for col in ('GarageYrBlt', 'GarageArea','GarageCars'):
+    features[col] = features[col].fillna(0)
+for col in ['GarageType', 'GarageFinish', 'GarageQual', 'GarageCond']:
+    features[col] = features[col].fillna('None')
+for col in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2']:
+    features[col] = features[col].fillna('None')
+    
+features['MSZoning'] = features.groupby('MSSubClass')['MSZoning'].transform(lambda x: x.fillna(x.mode()[0]))
+
+
+
+objects = []
+for i in features.columns:
+    if features[i].dtype == object:
+        objects.append(i)
+features.update(features[objects].fillna('None'))
+
+features['LotFrontage'] = features.groupby('Neighborhood')['LotFrontage'].transform(lambda x: x.fillna(x.median()))
+
+
+
+numeric_dtypes = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+numerics = []
+for i in features.columns:
+    if features[i].dtype in numeric_dtypes:
+        numerics.append(i)
+features.update(features[numerics].fillna(0))
+
+
+numeric_dtypes = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+numerics2 = []
+for i in features.columns:
+    if features[i].dtype in numeric_dtypes:
+        numerics2.append(i)
+skew_features = features[numerics2].apply(lambda x: skew(x)).sort_values(ascending=False)
+
+high_skew = skew_features[skew_features > 0.5]
+skew_index = high_skew.index
+
+for i in skew_index:
+    features[i] = boxcox1p(features[i], boxcox_normmax(features[i] + 1))
+    
+
+features = features.drop(['Utilities', 'Street', 'PoolQC'], axis=1)
+
+features['YrBltAndRemod'] = features['YearBuilt'] + features['YearRemodAdd']
+features['TotalSF'] = features['TotalBsmtSF'] + features['1stFlrSF'] + features['2ndFlrSF']
+
+features['Total_sqr_footage'] = (features['BsmtFinSF1'] + features['BsmtFinSF2'] + features['1stFlrSF'] + features['2ndFlrSF'])
